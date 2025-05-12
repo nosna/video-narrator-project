@@ -3,7 +3,7 @@
 import json
 from typing import List, Dict, Any, TypedDict, Optional
 
-from utils import setup_logger, srt_time_to_seconds, format_timestamp_srt, NarrationError
+from utils import setup_logger, srt_time_to_seconds, format_timestamp_srt, NarrationError, ScriptParserError
 
 logger = setup_logger(__name__)
 
@@ -16,9 +16,6 @@ class NarrationSegment(TypedDict):
     end_time_sec: float
     text: str
 
-class ScriptParserError(NarrationError):
-    """Custom exception for errors during script parsing and validation."""
-    pass
 
 class ScriptParser:
     """
@@ -110,11 +107,34 @@ class ScriptParser:
                 else:
                     raise ScriptParserError(f"Segment {segment_id}: Start time ({start_time_sec:.3f}s) must be before end time ({end_time_sec:.3f}s). Data: {seg_data}")
 
-            if end_time_sec > self.video_duration_sec + 5.0: # Allow a small 5s leeway
-                logger.warning(f"Segment {segment_id}: End time ({end_time_sec:.3f}s) exceeds video duration ({self.video_duration_sec:.3f}s by more than 5s). Clamping to video duration.")
-                end_time_sec = self.video_duration_sec
-                if start_time_sec >= end_time_sec: # If clamping makes start >= end
-                    start_time_sec = max(0.0, end_time_sec - 0.1) # Ensure start is before new end
+            max_end_time_leeway_sec = 3.0
+            if end_time_sec > self.video_duration_sec:
+                if end_time_sec > self.video_duration_sec + max_end_time_leeway_sec:
+                    error_msg = (
+                        f"Segment {segment_id}: End time ({end_time_sec:.3f}s) exceeds video duration "
+                        f"({self.video_duration_sec:.3f}s) by more than the allowed leeway of {max_end_time_leeway_sec}s. "
+                        f"Actual excess: {(end_time_sec - self.video_duration_sec):.3f}s. Data: {seg_data}"
+                    )
+                    logger.error(error_msg)
+                    raise ScriptParserError(error_msg)
+                else: # Exceeds duration but is within the allowed leeway
+                    logger.warning(
+                        f"Segment {segment_id}: End time ({end_time_sec:.3f}s) exceeds video duration "
+                        f"({self.video_duration_sec:.3f}s) but is within the {max_end_time_leeway_sec}s leeway. "
+                        f"Clamping end time to video duration."
+                    )
+                    end_time_sec = self.video_duration_sec
+                    # If clamping makes start_time >= new end_time, adjust start_time
+                    if start_time_sec >= end_time_sec:
+                        start_time_sec = max(0.0, end_time_sec - 0.1) # Ensure start is before end and not negative
+                        # If end_time_sec itself is 0 (e.g. video_duration_sec is 0), start_time_sec will also be 0.
+                        # The previous check `start_time_sec >= end_time_sec` would have already tried to give it a minimal positive duration
+                        # if start_time_sec was also 0. This re-adjustment is a safeguard.
+                        if start_time_sec >= end_time_sec and end_time_sec > 0: # One last check if end_time_sec is not 0
+                            start_time_sec = end_time_sec - 0.001 # Make it just slightly less
+                        elif start_time_sec >= end_time_sec and end_time_sec == 0:
+                            start_time_sec = 0.0
+
 
             if start_time_sec < last_segment_end_time - 0.5: # Allow small overlap of 500ms
                 logger.warning(f"Segment {segment_id}: Start time ({start_time_sec:.3f}s) overlaps significantly with previous segment's end time ({last_segment_end_time:.3f}s). Adjusting start time.")
