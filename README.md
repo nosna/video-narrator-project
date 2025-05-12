@@ -119,7 +119,7 @@ video-narrator/
 ├── tests/                    # Automated tests
 │   ├── test_script_parser.py # Unit tests for script_parser
 │   └── test_pipeline_integration.py # Integration test for the full pipeline
-├── .env.example            # Example environment variables file
+├── env.txt            # Example environment variables file, MUST RENAME AS .env
 ├── requirements.txt        # Python dependencies
 ├── README.md               # This file
 └── (Optional) Dockerfile   # For containerization
