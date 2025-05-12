@@ -128,7 +128,7 @@ video-narrator/
 
 -   **Language**: Python 3.10+
 -   **Core AI Models**:
-    -   Google Gemini API (e.g., Gemini 1.5 Pro) for video understanding and initial timed narrative generation.
+    -   Google Gemini API (e.g., Gemini 2.5 Flash) for video understanding and initial timed narrative generation.
     -   Google Cloud Text-to-Speech API for audio synthesis.
 -   **Key Libraries**:
     -   `google-generativeai`: Official Python SDK for the Gemini API.
@@ -243,7 +243,7 @@ The service uses a `.env` file in the project root to manage its configuration. 
     * **Purpose**: API key for authenticating with the Google Gemini API. Used for video analysis and narrative generation.
     * **Source**: Google AI Studio or Google Cloud Console.
 
--   **`GEMINI_VIDEO_MODEL="gemini-1.5-pro-latest"`**
+-   **`GEMINI_VIDEO_MODEL="gemini-2.5-flash-preview-04-17"`**
     * **Required**: No (has a default in `src/config.py`).
     * **Purpose**: Specifies which Gemini model to use for video processing. Ensure the chosen model supports video input and the desired features (e.g., long context, JSON output mode).
     * **Examples**: `gemini-1.5-pro-latest`, `gemini-1.0-pro-vision-latest`.
@@ -291,3 +291,6 @@ The service is operated via the `src/main.py` command-line interface.
 
 ```bash
 python src/main.py process-video [OPTIONS] <INPUT_SOURCE>
+# example
+python src/main.py process-video --file-path sample_data/sample.mp4 --mux-video
+
