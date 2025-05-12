@@ -99,7 +99,7 @@ The service processes videos through a pipeline of coordinated steps:
     * Logs of the process are provided to the user via the CLI.
 
 ## Project Structure
-
+```
 video-narrator/
 ├── src/                    # Source code
 │   ├── main.py             # CLI entry point
@@ -123,6 +123,7 @@ video-narrator/
 ├── requirements.txt        # Python dependencies
 ├── README.md               # This file
 └── (Optional) Dockerfile   # For containerization
+```
 
 ## Technical Stack
 
