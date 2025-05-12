@@ -1,6 +1,6 @@
-# Video Narrator Service
+# Video Narrator
 
-This service leverages AI models to analyze video content, generate a story-driven narration script, convert it to speech, and optionally mux it back into the original video. The goal is to create an engaging "audiobook" version of a film or video clip.
+This project leverages AI models to analyze video content, generate a story-driven narration script, convert it to speech, and optionally mux it back into the original video. The goal is to create an engaging "audiobook" version of a film or video clip.
 
 ## Table of Contents
 
