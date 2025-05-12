@@ -88,6 +88,10 @@ class TTSError(Exception):
     """Custom exception for TTS errors."""
     pass
 
+class ScriptParserError(Exception):
+    """Custom exception for errors during script parsing and validation."""
+    pass
+
 # Example of using the logger within this utils file itself
 # logger = setup_logger(__name__)
 # logger.info("Utils module loaded.")
