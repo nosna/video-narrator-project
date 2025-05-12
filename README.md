@@ -204,7 +204,7 @@ Follow these steps to set up the Video Narrator Service on your local machine.
     API keys and sensitive configurations are managed using a `.env` file.
     1.  Copy the example file:
         ```bash
-        cp .env.example .env
+        cp env.txt .env
         ```
     2.  Open the newly created `.env` file in a text editor.
     3.  **`GOOGLE_API_KEY`**:
