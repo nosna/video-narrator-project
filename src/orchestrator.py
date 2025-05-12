@@ -2,10 +2,10 @@
 
 import os
 import time
-from typing import Optional, Type
+from typing import Optional, Type, List
 
 from config import settings
-from utils import setup_logger, clean_filename, NarrationError, VideoProcessingError
+from utils import setup_logger, clean_filename, NarrationError, ScriptParserError, VideoProcessingError
 from video_processor import VideoProcessor
 from gemini_handler import GeminiHandler
 from script_parser import ScriptParser, NarrationSegment
@@ -26,6 +26,8 @@ class Orchestrator:
     """
     Orchestrates the entire video narration pipeline.
     """
+
+    MAX_SCRIPT_GENERATION_RETRIES = 10 # Maximum number of retries for script generation/parsing
 
     def __init__(self,
                  input_path_or_url: str,
@@ -95,6 +97,9 @@ class Orchestrator:
             "logs": [] # To store key log messages or errors
         }
 
+        script_generation_retry_count = 0
+        script_successfully_parsed = False
+
         try:
             # 1. Process Video Input
             logger.info("Step 1: Processing video input...")
@@ -104,29 +109,55 @@ class Orchestrator:
             logger.info(f"Video processed. Local path: {self.processed_video_path}, Duration: {self.video_metadata['duration']:.2f}s")
             results["logs"].append(f"Video processed: {self.processed_video_path}")
 
-            # 2. Generate Narration Script with Gemini
-            logger.info("Step 2: Generating narration script with Gemini...")
             if not self.processed_video_path or not self.video_metadata:
-                 raise NarrationError("Video processing failed, cannot proceed to Gemini.")
-            self.gemini_handler = GeminiHandler(self.processed_video_path, self.video_metadata)
-            self.raw_narration_script = self.gemini_handler.generate_narration()
-            logger.info("Raw narration script received from Gemini.")
-            results["logs"].append("Raw script received from Gemini.")
-            # Save raw script for debugging
-            raw_script_path = os.path.join(self.output_dir, f"{self.video_filename_base}_gemini_raw_output.json")
-            with open(raw_script_path, "w", encoding="utf-8") as f:
-                f.write(self.raw_narration_script)
-            logger.info(f"Saved raw Gemini output to: {raw_script_path}")
+                 # This check is crucial before entering the retry loop for steps 2 & 3
+                 raise NarrationError("Video processing failed, cannot proceed to script generation.")
 
+            # --- Retry Loop for Steps 2 & 3 ---
+            while script_generation_retry_count <= self.MAX_SCRIPT_GENERATION_RETRIES and not script_successfully_parsed:
+                try:
+                    # 2. Generate Narration Script with Gemini
+                    logger.info(f"Step 2: Generating narration script with Gemini (Attempt {script_generation_retry_count + 1}/{self.MAX_SCRIPT_GENERATION_RETRIES + 1})...")
+                    self.gemini_handler = GeminiHandler(self.processed_video_path, self.video_metadata)
+                    self.raw_narration_script = self.gemini_handler.generate_narration()
+                    logger.info("Raw narration script received from Gemini.")
+                    results["logs"].append(f"Raw script received from Gemini (Attempt {script_generation_retry_count + 1}).")
+                    
+                    # Save raw script for debugging on each attempt if desired, or only on last attempt/failure
+                    raw_script_filename = f"{self.video_filename_base}_gemini_raw_output_attempt_{script_generation_retry_count + 1}.json"
+                    raw_script_path = os.path.join(self.output_dir, raw_script_filename)
+                    with open(raw_script_path, "w", encoding="utf-8") as f:
+                        f.write(self.raw_narration_script if self.raw_narration_script else "")
+                    logger.info(f"Saved raw Gemini output for attempt {script_generation_retry_count + 1} to: {raw_script_path}")
 
-            # 3. Parse and Validate Script
-            logger.info("Step 3: Parsing and validating narration script...")
-            if not self.raw_narration_script:
-                raise NarrationError("No raw script from Gemini to parse.")
-            self.script_parser = ScriptParser(self.raw_narration_script, self.video_metadata['duration'])
-            self.parsed_segments = self.script_parser.parse_and_validate()
-            logger.info(f"Script parsed into {len(self.parsed_segments)} segments.")
-            results["logs"].append(f"Script parsed into {len(self.parsed_segments)} segments.")
+                    # 3. Parse and Validate Script
+                    logger.info("Step 3: Parsing and validating narration script...")
+                    if not self.raw_narration_script:
+                        # This might happen if GeminiHandler returns empty string despite not raising an error
+                        raise ScriptParserError("No raw script content from Gemini to parse (empty string received).")
+                    
+                    self.script_parser = ScriptParser(self.raw_narration_script, self.video_metadata['duration'])
+                    self.parsed_segments = self.script_parser.parse_and_validate()
+                    logger.info(f"Script parsed successfully into {len(self.parsed_segments)} segments.")
+                    results["logs"].append(f"Script parsed into {len(self.parsed_segments)} segments.")
+                    script_successfully_parsed = True # Exit loop on success
+
+                except Exception as e:
+                    logger.warning(f"Script parsing failed (Attempt {script_generation_retry_count + 1}): {spe}")
+                    results["logs"].append(f"WARNING: Script parsing failed (Attempt {script_generation_retry_count + 1}): {spe}")
+                    script_generation_retry_count += 1
+                    if script_generation_retry_count > self.MAX_SCRIPT_GENERATION_RETRIES:
+                        logger.error(f"Max retries ({self.MAX_SCRIPT_GENERATION_RETRIES}) reached for script generation/parsing. Failing.")
+                        results["logs"].append(f"ERROR: Max retries reached for script generation/parsing.")
+                        raise # Re-raise the last ScriptParserError
+                    else:
+                        logger.info(f"Retrying script generation from Step 2. Waiting a moment...")
+                        time.sleep(5) # Optional: wait a bit before retrying
+            # --- End of Retry Loop ---
+
+            if not script_successfully_parsed:
+                # This case should ideally be handled by the re-raise in the loop, but as a safeguard:
+                raise NarrationError("Failed to parse script after maximum retries.")
 
             # Generate and save SRT file
             srt_content = self.script_parser.to_srt()
@@ -159,7 +190,7 @@ class Orchestrator:
             logger.info(f"TTS completed for {len(self.tts_results)} segments.")
             results["logs"].append(f"TTS completed for {len(self.tts_results)} segments.")
 
-
+            print(self.tts_results)
             # 5. Assemble Audio
             logger.info("Step 5: Assembling final audio track...")
             if not self.tts_results:
@@ -315,4 +346,3 @@ if __name__ == "__main__":
         print(f"An error occurred during orchestrator test: {e}")
         import traceback
         traceback.print_exc()
-
