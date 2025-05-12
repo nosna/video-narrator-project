@@ -1,0 +1,22 @@
+# Core Python
+python-dotenv # For loading .env files
+click       # For CLI interface
+requests    # For downloading videos from URLs
+
+# Google Cloud / Gemini
+google-generativeai # The official Google AI Python SDK for Gemini API
+google-cloud-aiplatform # If using Vertex AI more directly
+google-cloud-texttospeech # If using Google Cloud TTS
+
+# Video/Audio Processing
+ffmpeg-python   # Python bindings for FFmpeg (probing, muxing, etc.)
+pydub           # For audio manipulation (assembly, export)
+# opencv-python # If more advanced frame-level processing is needed outside Gemini
+
+# Optional for HTTP API (add later if needed)
+# fastapi
+# uvicorn
+
+# Testing (add later)
+# pytest
+# pytest-cov
